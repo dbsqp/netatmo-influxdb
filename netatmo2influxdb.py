@@ -49,14 +49,14 @@ if influxdb2_ssl_verify_str is not None:
     influxdb2_ssl_verify = influxdb2_ssl_verify_str.lower() == "true"
 else:
     influxdb2_ssl_verify = False
-    
+
 # hard encoded environment variables!
 
 # report debug status
 if debug:
     print ( " debug: TRUE" )
 else:
-    print ( " debug: FALSE" )    
+    print ( " debug: FALSE" )
 if influxdb2_ssl:
     print ( "   SSL: TRUE" )
 else:
@@ -73,7 +73,7 @@ devList = lnetatmo.WeatherStationData(authorization)
 
 
 # influxDBv2
-if influxdb2_ssl_str:
+if influxdb2_ssl:
     influxdb2_url="https://" + influxdb2_host + ":" + str(influxdb2_port)
 else:
     influxdb2_url="http://" + influxdb2_host + ":" + str(influxdb2_port)
@@ -103,11 +103,11 @@ outsidelist=['Rain','Wind']
 
 
 # pass data to InfluxDB
-def send_data(ds):    
+def send_data(ds):
     senddata={}
     dd=ds['dashboard_data']
     time = dd['time_utc']
-    timeOut = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%dT%H:%M:%SZ") 
+    timeOut = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # pass module data
     for key in ds:
@@ -119,7 +119,7 @@ def send_data(ds):
         if key == 'battery_percent':
             measurement="battery"
             time=ds['last_seen']
-        
+
         if key == "rf_status":
             measurement="signal"
             time=ds['last_seen']
@@ -127,8 +127,8 @@ def send_data(ds):
         if key == "wifi_status":
             measurement="signal"
             time=ds['last_status_store']
-            
-        timeOut = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%dT%H:%M:%SZ") 
+
+        timeOut = datetime.datetime.fromtimestamp(time).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         senddata["measurement"]=measurement
         senddata["time"]=timeOut
@@ -154,13 +154,13 @@ def send_data(ds):
         #if key in keylist:
         value=round(float(dd[key]),2)
         #else:
-        #    value=dd[key]    
-   
+        #    value=dd[key]
+
         if ds['module_name'] == "Wind":
             senddata["measurement"]="wind"
         else:
             senddata["measurement"]=key.lower()
-   
+
         senddata["time"]=timeOut
         senddata["tags"]={}
         senddata["tags"]["source"]="docker netatmo-influxdbv2"
@@ -186,19 +186,19 @@ def send_data(ds):
 
         if key == "Rain":
             senddata["fields"]["mm"]=value
-  
+
         if key == "WindStrength":
             senddata["fields"]["speed"]=value
             senddata["tags"]["type"]="general"
-            
+
         if key == "WindAngle":
             senddata["fields"]["direction"]=value
             senddata["tags"]["type"]="general"
-            
+
         if key == "GustStrength":
             senddata["fields"]["speed"]=value
             senddata["tags"]["type"]="gust"
-            
+
         if key == "GustAngle":
             senddata["fields"]["direction"]=value
             senddata["tags"]["type"]="gust"
@@ -207,6 +207,20 @@ def send_data(ds):
             print ("INFLUX: "+influxdb2_bucket)
             print (json.dumps(senddata,indent=4))
         write_api.write(bucket=influxdb2_bucket, org=influxdb2_org, record=[senddata])
+
+
+def modulesNamesList(o, station=None):
+    s = o.getStation(station)
+    if not s: raise NoDevice("No station with name or id %s" % station)
+    o.default_station = station
+    o.default_station_data = s
+    o.modules = dict()
+    if 'modules' in o.default_station_data:
+        for m in o.default_station_data['modules']:
+            o.modules[ m['_id'] ] = m
+    res = [m['module_name'] for m in o.modules.values()]
+    #res.append(station['module_name'])
+    return res
 
 
 # pass default station
@@ -230,7 +244,7 @@ send_data(ds)
 
 
 # pass modules
-for name in devList.modulesNamesList( station='devList.default_station' ):
+for name in modulesNamesList(devList, ds['station_name'] ):
     ds=devList.moduleByName(name)
     if ds is None:
         continue
